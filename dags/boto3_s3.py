@@ -65,10 +65,15 @@ with DAG(
     # )
 
     def check_memory_usage():
-        memory_info = psutil.virtual_memory()
+ #       memory_info = psutil.virtual_memory()
 #         logging.info(f"Memory Usage - Total: {memory_info.total}, Available: {memory_info.available}")
 #         logging.info(memory_info.percent)
-        logging.info(memory_info.percent)
+#        logging.info(memory_info.percent)
+        pid = os.getpid()
+        process = psutil.Process(pid)
+        print("Информация о процессе Python:")
+        print(f"PID: {pid}")
+        print(f"Используемая память процессом: {process.memory_info().rss / 1024 / 1024} MB")
 
 
     @task
@@ -98,33 +103,33 @@ with DAG(
         # # get_object_response = s3.get_object(Bucket=bucket,Key='py_script.py')
         # # print(get_object_response['Body'].read())
 
-        bucket_name = 'from-sdex'
-        s3 = _get_engine(CONN_ID_S3)
+ #       bucket_name = 'from-sdex'
+ #       s3 = _get_engine(CONN_ID_S3)
 
-        bucket = s3.Bucket(bucket_name)
-        list_file = [file.key for file in bucket.objects.all()]
-        print(list_file)
-        engine_kap = _get_engine(CONN_ID_KAP)
+ #       bucket = s3.Bucket(bucket_name)
+ #       list_file = [file.key for file in bucket.objects.all()]
+ #       print(list_file)
+#        engine_kap = _get_engine(CONN_ID_KAP)
         
 #         Minio() 
         
-        logging.info("client finish")
+ #       logging.info("client finish")
         
-        client = Minio(
-            'minio:9000',
-            secure=False,
-            access_key="Kwi5KMqTbmaSUgGzzGyR",
-            secret_key="Yy5UKrNgJOLWgAJWXHWvKlLQ95i34QhvzfROrgq8",
-            region="eu-west-2"
-        )
+ #       client = Minio(
+ #           'minio:9000',
+ #           secure=False,
+ #           access_key="ZFebuiOnYeicXakkNI07",
+ #           secret_key="0eiC7rtDYEgPF0eqwmp0Gks2Ej9j0u45b275rnRh",
+ #           region="eu-west-2"
+ #       )
         
         
-        response = client.get_object(
-            bucket_name="from-sdex", 
-            object_name="test.csv", 
-            offset=0, 
-            length=2048
-        )
+ #       response = client.get_object(
+ #           bucket_name="from-sdex", 
+ #           object_name="test.csv", 
+ #           offset=0, 
+ #           length=2048
+ #       )
         
 #         Minio._execute(
 #             "GET",
@@ -136,7 +141,7 @@ with DAG(
 #         )
 
         connection = BaseHook.get_connection(CONN_ID_S3)
-        
+
         user = connection.login
         password = connection.password
         host = connection.host
@@ -144,6 +149,13 @@ with DAG(
         dbname = connection.schema
         extra = ast.literal_eval(str(connection.extra))
         
+        engine_pg = _get_engine(CONN_ID_KAP)
+        
+        with engine_pg.connect() as connection:
+            result = connection.execute("""
+                DROP TABLE IF EXISTS test_add;
+
+            """);
         obj = boto3.resource(
                 service_name='s3',
                 aws_access_key_id=user,
@@ -151,11 +163,59 @@ with DAG(
                 endpoint_url=extra['host'],
                 verify=False
             ).Object('from-sdex', 'test.csv')
-        range_ = obj.get(Range='bytes=0-1024')['Body']
-        logging.info(sys.getsizeof(range_))
-        logging.info(range_.read())
+            
+        size_ = obj.content_length
+        print(size_,' SIZe')
+        start = 0
+        end = 10485760
+        #name;bank;job;company;date_time;phone_number
         
+        col = []
+        arr_last =[]
+        arr_temp = []
+        arr_finish=[]
+        logging.info("START    ///")
+        for i in range(round(size_ / end)+1):
+            range_ = obj.get(Range=f'bytes={start+(i*end)}-{end+(i*end)}')['Body']
+
+            r = range_.read().decode('utf-8',errors='replace')
+            if str(r)[0] ==";":                
+                str_ = str(r)[1:].replace('\r','').split('\n')
+            else:
+                str_ = str(r).replace('\r','').split('\n')
+                
+            arr0 = [ i.split(';') for i in str_]
+            if i ==0:
+                col = arr0[0]
+                arr_last = arr0[-1]
+                
+            if i != 0:
+                if len(col) != (len(arr_last)+len(arr0[0])):
+                    x = arr_last[-1] + arr0[0][0]
+                    arr_last = arr_last[:-1]
+                    arr_last.append(x)
+                    arr_temp = arr_last + arr0[0][1:]
+                else:
+                    arr_temp = arr_last + arr0[0]
+                #logging.info(arr_temp)
+                arr_finish = [arr_temp] + arr0[:-1]
+            else:
+                arr_finish = arr0[:-1]
+
+
+            arr_last = arr0[-1]
+
+            check_memory_usage()
+            pd.DataFrame(arr_finish,columns=col).to_sql('test_add',
+                      engine_pg,
+                      schema='temp_247_sch',
+                      if_exists='append',
+                      index=False)            
+
+        logging.info("FINISH    ///")
+
         
+
 #         logging.info(response.request_url)
 
         
@@ -196,15 +256,7 @@ with DAG(
 #             print(result.stats())
         
         
-        
-        storage_options = {
-            'key': r'Kwi5KMqTbmaSUgGzzGyR',
-            'secret': r'Yy5UKrNgJOLWgAJWXHWvKlLQ95i34QhvzfROrgq8',
-            'endpoint_url': 'http://minio:9000'
-        }
-        i=0
-        logging.info('START')
-        check_memory_usage()
+      
 #         df = pd.read_csv(f's3://from-sdex/test.csv', storage_options=storage_options, sep=';', 
 #                                  encoding='utf-8')
 #         check_memory_usage()
@@ -258,9 +310,3 @@ with DAG(
         #               index=False)
     
     test()
-    # session = boto3.session.Session()
-    # s3 = session.client(
-    #     service_name='s3',
-    #     aws
-    #     endpoint_url='http://s3server:8000'
-    # )
