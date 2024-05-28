@@ -55,114 +55,72 @@ with DAG(
             engine = create_engine(f'postgresql+psycopg2://{user}:{password}@{host}:{port}/{dbname}?target_session_attrs=read-write',
                                    pool_pre_ping=True)
         return engine
-    # session = boto3.session.Session()
-    # s3 = session.client(
-    #     service_name='s3',
-    #     aws_access_key_id=user,
-    #     aws_secret_access_key=password,
-    #     endpoint_url=extra['host'],
-    #     verify=False
-    # )
 
     def check_memory_usage():
- #       memory_info = psutil.virtual_memory()
-#         logging.info(f"Memory Usage - Total: {memory_info.total}, Available: {memory_info.available}")
-#         logging.info(memory_info.percent)
-#        logging.info(memory_info.percent)
         pid = os.getpid()
         process = psutil.Process(pid)
         print("Информация о процессе Python:")
         print(f"PID: {pid}")
         print(f"Используемая память процессом: {process.memory_info().rss / 1024 / 1024} MB")
+    def normarr(s):
+        s = s.decode('utf-8')
+        d =[]
+        x =[]
+        str_=''
+        flg=0
+        flg_2 = 0
+        str_col =''
+        colen = ''
+        for i in range(len(s)):
+            if s[i] == '\n':
+                break
+            str_col = s[i]
+            colen += str_col
+        colen = len(colen.split(';'))
+
+        
+        for i in range(len(s)):
+            
+            if (s[i] not in [';','\n']) and flg_2 ==0:
+                str_ += s[i]
+            elif s[i] not in [';','\n']:
+                x[-1] += s[i]
+                    
+            
+                
+            if s[i] in [';','\n'] or i == len(s)-1:
+    #             print(s[i])
+                if flg_2 != 1:
+                    x.append(str_)
+
+                str_=''
+                flg_2 =0
+                if len(x) < colen and s[i] =='\n':
+                    flg = 1
+                    flg_2 = 1
+
+            if (s[i] =='\n' or i == len(s)-1) and flg ==0:
+                d.append(x)
+                x=[]
+            flg =0
+            
+        return d
 
 
     @task
     def test():
-        # bucket = 'from-sdex'
-        # # Создать новый бакет
-        # s3.create_bucket(Bucket=bucket)
-
-        # # # Загрузить объекты в бакет
-
-        # ## Из строки
-        # s3.put_object(Bucket=bucket, Key='object_name', Body='TEST', StorageClass='COLD')
-
-        # # ## Из файла
-        # # s3.upload_file('this_script.py', bucket, 'py_script.py')
-        # # s3.upload_file('this_script.py', bucket, 'script/py_script.py')
-
-        # Получить список объектов в бакете
-        # for key in s3.list_objects(Bucket=bucket)['Contents']:
-        #     print(key['Key'])
-
-        # # # Удалить несколько объектов
-        # # forDeletion = [{'Key':'object_name'}, {'Key':'script/py_script.py'}]
-        # # response = s3.delete_objects(Bucket=bucket, Delete={'Objects': forDeletion})
-
-        # # # Получить объект
-        # # get_object_response = s3.get_object(Bucket=bucket,Key='py_script.py')
-        # # print(get_object_response['Body'].read())
-
- #       bucket_name = 'from-sdex'
- #       s3 = _get_engine(CONN_ID_S3)
-
- #       bucket = s3.Bucket(bucket_name)
- #       list_file = [file.key for file in bucket.objects.all()]
- #       print(list_file)
-#        engine_kap = _get_engine(CONN_ID_KAP)
-        
-#         Minio() 
-        
- #       logging.info("client finish")
-        
- #       client = Minio(
- #           'minio:9000',
- #           secure=False,
- #           access_key="ZFebuiOnYeicXakkNI07",
- #           secret_key="0eiC7rtDYEgPF0eqwmp0Gks2Ej9j0u45b275rnRh",
- #           region="eu-west-2"
- #       )
+        # Подключение к МИНИО
+        obj = _get_engine(CONN_ID_S3).Object('from-sdex', 'test1.csv')
         
         
- #       response = client.get_object(
- #           bucket_name="from-sdex", 
- #           object_name="test.csv", 
- #           offset=0, 
- #           length=2048
- #       )
-        
-#         Minio._execute(
-#             "GET",
-#             "from-sdex",
-#             "test.csv",
-#             headers=cast(DictType, {'Range': 'bytes=0-2047'}),
-            
-#             preload_content=False,
-#         )
-
-        connection = BaseHook.get_connection(CONN_ID_S3)
-
-        user = connection.login
-        password = connection.password
-        host = connection.host
-        port = connection.port
-        dbname = connection.schema
-        extra = ast.literal_eval(str(connection.extra))
-        
+        # подключение к ПОСТГРЕС
         engine_pg = _get_engine(CONN_ID_KAP)
         
         with engine_pg.connect() as connection:
             result = connection.execute("""
-                DROP TABLE IF EXISTS test_add;
-
+                DROP TABLE IF EXISTS temp_247_sch.test_add;
             """);
-        obj = boto3.resource(
-                service_name='s3',
-                aws_access_key_id=user,
-                aws_secret_access_key=password,
-                endpoint_url=extra['host'],
-                verify=False
-            ).Object('from-sdex', 'test.csv')
+
             
         size_ = obj.content_length
         print(size_,' SIZe')
@@ -174,17 +132,28 @@ with DAG(
         arr_last =[]
         arr_temp = []
         arr_finish=[]
+        
         logging.info("START    ///")
+        
         for i in range(round(size_ / end)+1):
             range_ = obj.get(Range=f'bytes={start+(i*end)}-{end+(i*end)}')['Body']
-
-            r = range_.read().decode('utf-8',errors='replace')
-            if str(r)[0] ==";":                
-                str_ = str(r)[1:].replace('\r','').split('\n')
-            else:
-                str_ = str(r).replace('\r','').split('\n')
+           
+           # print('r0 = ',range_.read())
+            r = range_.read() #.decode('utf-8',errors='replace')
+            print('r0 = ',str(r))
+            r = normarr(r)
+            print("r1 =",r)
+            #r = r.decode('utf-8',errors='replace')
+            #print("r2 =",r)
+            
+            #print(range_.read())
+            #if str(r)[0] ==";":                
+            #    str_ = str(r)[1:].replace('\r','').split('\n')
+            #else:
+            #    str_ = str(r).replace('\r','').split('\n')
                 
-            arr0 = [ i.split(';') for i in str_]
+            #arr0 = [ i.split(';') for i in str_]
+            arr0 = r
             if i ==0:
                 col = arr0[0]
                 arr_last = arr0[-1]
@@ -197,7 +166,7 @@ with DAG(
                     arr_temp = arr_last + arr0[0][1:]
                 else:
                     arr_temp = arr_last + arr0[0]
-                #logging.info(arr_temp)
+                    
                 arr_finish = [arr_temp] + arr0[:-1]
             else:
                 arr_finish = arr0[:-1]
@@ -214,99 +183,4 @@ with DAG(
 
         logging.info("FINISH    ///")
 
-        
-
-#         logging.info(response.request_url)
-
-        
-#         pid = os.getpid()
-#         process = psutil.Process(pid)
-#         logging.info("Информация о процессе Python:")
-#         logging.info(f"PID: {pid} chunk = 2048")
-#         logging.info(f"Используемая память процессом: {process.memory_info().rss / 1024 / 1024} MB")
-#         logging.info(sys.getsizeof(response))
-#         logging.info(response.data)
-#         response = ""
-#         response2 = client.get_object(
-#             bucket_name="from-sdex", 
-#             object_name="test.csv", 
-#             offset=0, 
-#             length=254
-#         )
-#         process = psutil.Process(pid)
-#         logging.info("Информация о процессе Python:")
-#         logging.info(f"PID: {pid} chunk = 254 ")
-#         logging.info(f"Используемая память процессом: {process.memory_info().rss / 1024 / 1024} MB")
-#         logging.info(sys.getsizeof(response2))
-#         logging.info(response2.data)
-        
-        
-#         with client.select_object_content(
-#                 "my-bucket",
-#                 "my-object.csv",
-#                 SelectRequest(
-#                     "select * from S3Object",
-#                     CSVInputSerialization(),
-#                     CSVOutputSerialization(),
-#                     request_progress=True,
-#                 ),
-#         ) as result:
-#             for data in result.stream():
-#                 print(data.decode())
-#             print(result.stats())
-        
-        
-      
-#         df = pd.read_csv(f's3://from-sdex/test.csv', storage_options=storage_options, sep=';', 
-#                                  encoding='utf-8')
-#         check_memory_usage()
-
-
-#         chunk = 200000
-#         for chank in pd.read_csv(f's3://from-sdex/test.csv', storage_options=storage_options, sep=';', 
-#                                  encoding='utf-8',chunksize=chunk):
-#             print(i)
-#             i += 1
-#             logging.info(f"Number {i}")
-#             check_memory_usage()
-#             # Получение информации о процессе Python
-#             pid = os.getpid()
-#             process = psutil.Process(pid)
-#             logging.info("Информация о процессе Python:")
-#             logging.info(f"PID: {pid} chunk = {chunk}")
-#             logging.info(f"Используемая память процессом: {process.memory_info().rss / 1024 / 1024} MB")
-#             if i == 10 :
-#                 break
-
-
-  #          chank.to_sql('test',
-  #                       engine_kap,
-  #                      schema='temp_247_sch',
-  #                      if_exists='append',
-  #                      index=False)
-        # def read_s3(key: str, bucket_name: str) -> str:
-        #     hook = S3Hook(aws_conn_id='s3_conn', verify=False)
-        #     buffer = io.BytesIO()
-        #     s3_obj = hook.get_key(key, bucket_name)
-        #     s3_obj.download_fileobj(buffer)
-        #     buf = buffer.getvalue()
-
-        #     b = buf.decode('utf-8')
-        #     b = b.replace('\0', '').replace('""', '')
-        #     return pd.read_csv(io.StringIO(b), sep=';', encoding='utf-8', dtype='str', chunksize=1000)
-        
-        # engine_kap = _get_engine(CONN_ID_KAP)
-        # list_file = ['test.csv']
-        # for file in list_file:
-        #     print(file)
-        #     i = 0
-        #     for chank in read_s3(file, bucket_name):
-        #         print(i)
-        #         i += 1
-        #         chank.to_sql('test',
-        #               engine_kap,
-        #               schema='temp_247_sch',
-        #               if_exists='replace',
-        #               index=False)
-    
     test()
