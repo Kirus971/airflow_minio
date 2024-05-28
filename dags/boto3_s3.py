@@ -64,7 +64,7 @@ with DAG(
         print(f"Используемая память процессом: {process.memory_info().rss / 1024 / 1024} MB")
     def normarr(s):
         s = s.decode('utf-8')
-        d =[]
+        d =[] 
         x =[]
         str_=''
         flg=0
@@ -77,7 +77,6 @@ with DAG(
             str_col = s[i]
             colen += str_col
         colen = len(colen.split(';'))
-
         
         for i in range(len(s)):
             
@@ -85,14 +84,10 @@ with DAG(
                 str_ += s[i]
             elif s[i] not in [';','\n']:
                 x[-1] += s[i]
-                    
-            
-                
+
             if s[i] in [';','\n'] or i == len(s)-1:
-    #             print(s[i])
                 if flg_2 != 1:
                     x.append(str_)
-
                 str_=''
                 flg_2 =0
                 if len(x) < colen and s[i] =='\n':
