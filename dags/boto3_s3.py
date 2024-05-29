@@ -62,9 +62,10 @@ with DAG(
         print("Информация о процессе Python:")
         print(f"PID: {pid}")
         print(f"Используемая память процессом: {process.memory_info().rss / 1024 / 1024} MB")
+        
     def normarr(s):
-        s = s.decode('utf-8')
-        d =[] 
+        s = s.decode('utf-8',errors='replace')
+        d =[]
         x =[]
         str_=''
         flg=0
@@ -77,6 +78,7 @@ with DAG(
             str_col = s[i]
             colen += str_col
         colen = len(colen.split(';'))
+
         
         for i in range(len(s)):
             
@@ -86,8 +88,10 @@ with DAG(
                 x[-1] += s[i]
 
             if s[i] in [';','\n'] or i == len(s)-1:
+    #             print(s[i])
                 if flg_2 != 1:
                     x.append(str_)
+
                 str_=''
                 flg_2 =0
                 if len(x) < colen and s[i] =='\n':
@@ -105,7 +109,7 @@ with DAG(
     @task
     def test():
         # Подключение к МИНИО
-        obj = _get_engine(CONN_ID_S3).Object('from-sdex', 'test1.csv')
+        obj = _get_engine(CONN_ID_S3).Object('from-sdex', 'test.csv')
         
         
         # подключение к ПОСТГРЕС
@@ -135,9 +139,9 @@ with DAG(
            
            # print('r0 = ',range_.read())
             r = range_.read() #.decode('utf-8',errors='replace')
-            print('r0 = ',str(r))
+
             r = normarr(r)
-            print("r1 =",r)
+            #print("r1 =",r)
             #r = r.decode('utf-8',errors='replace')
             #print("r2 =",r)
             
